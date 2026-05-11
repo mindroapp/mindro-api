@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { UsersModule } from './modules/users/users.module';
 import { ScheduleModule } from './modules/schedule/schedule.module';
+import { PatientsModule } from './modules/patients/patients.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ScheduleModule } from './modules/schedule/schedule.module';
     AuthModule,
     UsersModule,
     ScheduleModule,
+    PatientsModule,
   ],
   controllers: [],
   providers: [
