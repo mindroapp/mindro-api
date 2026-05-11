@@ -1,0 +1,25 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.env
+.git
+.gitignore
+uploads
+tests
+*.md
+
+# other directories - should not be in build context
+/uploads
+
+# Docker and database data
+redis-data/
+postgres/
+volumes/
+data/
+uploads/
+
+# Build artifacts
+dist/
+build/
+coverage/

@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  PROFESSIONAL
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AppointmentStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum ScheduleEventStatus {
+  scheduled
+  confirmed
+  completed
+  cancelled
+}
+
+model User {
+  id                   String         @id @default(cuid())
+  fullName             String
+  email                String         @unique
+  phone                String?        @unique
+  passwordHash         String
+  profession           String?
+  professionalRegister String?
+  professionalCouncil  String?
+  role                 UserRole       @default(PROFESSIONAL)
+  approvalStatus       ApprovalStatus @default(PENDING)
+  accountStatus        AccountStatus  @default(ACTIVE)
+  approvedAt           DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+model Availability {
+  id             String              @id @default(cuid())
+  date           String
+  professionalId String
+  timeSlots      TimeSlot[]
+  appointments   PublicAppointment[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([date, professionalId])
+}
+
+model TimeSlot {
+  id             String       @id @default(cuid())
+  time           String
+  available      Boolean      @default(true)
+  availabilityId String
+  availability   Availability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([availabilityId, time])
+}
+
+model PublicAppointment {
+  id             String            @id @default(cuid())
+  availabilityId String
+  availability   Availability      @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+  date           String
+  time           String
+  patientName    String
+  patientPhone   String
+  professionalId String
+  status         AppointmentStatus @default(pending)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model ScheduleEvent {
+  id             String              @id @default(cuid())
+  patientId      String
+  patientName    String
+  patientPhone   String?
+  date           DateTime
+  duration       Int
+  notes          String?
+  status         ScheduleEventStatus @default(scheduled)
+  videoLink      String?
+  professionalId String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}

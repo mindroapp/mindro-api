@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: mindro
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${PORT}
+
+      - BASE_URL=${BASE_URL}
+
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+
+      - UPLOAD_DIR=${UPLOAD_DIR}
+
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      - TZ=America/Fortaleza
+    ports:
+      - "6000:6000"
+
+    restart: always
+
+    volumes:
+      - uploads:/app/uploads
+
+    networks:
+      - postgres
+      - mindro
+
+volumes:
+  uploads:
+
+networks:
+  postgres:
+    external: true
+  mindro:
+    name: mindro
