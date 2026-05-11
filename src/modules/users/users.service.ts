@@ -4,6 +4,8 @@ import { AccountStatus, ApprovalStatus, User, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service.js';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -181,5 +183,64 @@ export class UsersService {
       professionalCouncil: match.professionalCouncil,
       professionalRegister: match.professionalRegister,
     };
+  }
+
+  async getCurrentProfile(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+    return this.sanitize(user);
+  }
+
+  async updateProfile(id: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updateData: any = {};
+
+    if (dto.fullName) updateData.fullName = dto.fullName;
+    if (dto.email) {
+      const byEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (byEmail && byEmail.id !== id) throw new BadRequestException('Email already exists');
+      updateData.email = dto.email;
+    }
+    if (dto.phone) {
+      const byPhone = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+      if (byPhone && byPhone.id !== id) throw new BadRequestException('Phone already exists');
+      updateData.phone = dto.phone;
+    }
+    if (dto.profession) updateData.profession = dto.profession;
+    if (dto.professionalRegister) updateData.professionalRegister = dto.professionalRegister;
+    if (dto.professionalCouncil) updateData.professionalCouncil = dto.professionalCouncil;
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+    return this.sanitize(updated);
+  }
+
+  async changePassword(id: string, dto: ChangePasswordDto) {
+    const { currentPassword, newPassword, confirmPassword } = dto;
+
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('New passwords do not match');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { passwordHash: newPasswordHash },
+    });
+
+    return this.sanitize(updated);
   }
 }
