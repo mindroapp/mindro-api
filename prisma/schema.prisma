@@ -32,6 +32,22 @@ enum AppointmentStatus {
   cancelled
 }
 
+enum PaymentMethod {
+  pix
+  cash
+  creditCard
+  debitCard
+  bankTransfer
+  other
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  cancelled
+  partial
+}
+
 enum ScheduleEventStatus {
   scheduled
   confirmed
@@ -108,15 +124,33 @@ model ScheduleEvent {
 }
 
 model Patient {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
   email          String
   phone          String
   birthdate      DateTime
+  gender         String?
   professionalId String
   notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  payments       Payment[]
 
   @@unique([email, professionalId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  patientId      String
+  patient        Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  professionalId String
+  amount         Float
+  date           DateTime
+  description    String?
+  method         PaymentMethod @default(pix)
+  status         PaymentStatus @default(pending)
+  receiptNumber  String?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 }
