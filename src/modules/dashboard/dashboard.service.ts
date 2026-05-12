@@ -12,13 +12,15 @@ const STATUS_LABELS: Record<string, string> = {
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getStats(professionalId: string) {
+  async getStats(professionalId: string, professionalEmail: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     const monthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
+    // ScheduleEvent and Availability are stored with email as professionalId (frontend uses user.email)
+    // Patient and Payment use UUID (backend-controlled)
     const [
       totalPatients,
       patients,
@@ -34,19 +36,19 @@ export class DashboardService {
         select: { birthdate: true, gender: true },
       }),
       this.prisma.scheduleEvent.count({
-        where: { professionalId, date: { gte: startOfMonth } },
+        where: { professionalId: professionalEmail, date: { gte: startOfMonth } },
       }),
       this.prisma.scheduleEvent.count({
-        where: { professionalId, date: { gte: startOfToday, lte: endOfToday } },
+        where: { professionalId: professionalEmail, date: { gte: startOfToday, lte: endOfToday } },
       }),
-      this.prisma.scheduleEvent.count({ where: { professionalId } }),
+      this.prisma.scheduleEvent.count({ where: { professionalId: professionalEmail } }),
       this.prisma.scheduleEvent.groupBy({
         by: ['status'],
-        where: { professionalId },
+        where: { professionalId: professionalEmail },
         _count: { id: true },
       }),
       this.prisma.availability.count({
-        where: { professionalId, date: { startsWith: monthPrefix } },
+        where: { professionalId: professionalEmail, date: { startsWith: monthPrefix } },
       }),
     ]);
 
@@ -108,6 +110,36 @@ export class DashboardService {
       ageDistribution,
       genderDistribution,
       sessionsByStatus,
+    };
+  }
+
+  async getAdminStats() {
+    const [
+      pendingProfessionals,
+      activeProfessionals,
+      inactiveProfessionals,
+      totalPatients,
+      totalSessions,
+    ] = await Promise.all([
+      this.prisma.user.count({
+        where: { role: 'PROFESSIONAL', approvalStatus: 'PENDING' },
+      }),
+      this.prisma.user.count({
+        where: { role: 'PROFESSIONAL', approvalStatus: 'APPROVED', accountStatus: 'ACTIVE' },
+      }),
+      this.prisma.user.count({
+        where: { role: 'PROFESSIONAL', approvalStatus: 'APPROVED', accountStatus: 'INACTIVE' },
+      }),
+      this.prisma.patient.count(),
+      this.prisma.scheduleEvent.count(),
+    ]);
+
+    return {
+      pendingProfessionals,
+      activeProfessionals,
+      inactiveProfessionals,
+      totalPatients,
+      totalSessions,
     };
   }
 }

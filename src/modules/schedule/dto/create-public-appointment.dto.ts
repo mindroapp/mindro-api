@@ -1,4 +1,4 @@
-import { IsString } from 'class-validator';
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 
 export class CreatePublicAppointmentDto {
   @IsString()
@@ -15,6 +15,18 @@ export class CreatePublicAppointmentDto {
 
   @IsString()
   patientPhone: string;
+
+  @IsOptional()
+  @IsString()
+  patientEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  patientBirthDate?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isFirstTime?: boolean;
 
   @IsString()
   professionalId: string;

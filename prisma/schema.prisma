@@ -13,6 +13,7 @@ datasource db {
 enum UserRole {
   ADMIN
   PROFESSIONAL
+  PATIENT
 }
 
 enum AccountStatus {
@@ -64,6 +65,7 @@ model User {
   profession           String?
   professionalRegister String?
   professionalCouncil  String?
+  birthDate            DateTime?
   role                 UserRole       @default(PROFESSIONAL)
   approvalStatus       ApprovalStatus @default(PENDING)
   accountStatus        AccountStatus  @default(ACTIVE)
@@ -102,6 +104,9 @@ model PublicAppointment {
   time           String
   patientName    String
   patientPhone   String
+  patientEmail   String?
+  patientBirthDate DateTime?
+  isFirstTime    Boolean           @default(false)
   professionalId String
   status         AppointmentStatus @default(pending)
   createdAt      DateTime          @default(now())
@@ -153,4 +158,27 @@ model Payment {
   notes          String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  patientId      String
+  professionalId String
+  date           DateTime?
+  duration       Int?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ProfessionalPublicProfile {
+  id            String   @id @default(cuid())
+  professionalId String  @unique
+  avatar        String?  @db.Text
+  pageName      String   @default("")
+  address       String   @default("")
+  bio           String   @default("")
+  instagram     String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

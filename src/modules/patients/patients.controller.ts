@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -7,6 +8,12 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 @Controller('patients')
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
+
+  @Public()
+  @Get('by-phone/:phone')
+  findByPhone(@Param('phone') phone: string) {
+    return this.patientsService.findByPhone(phone);
+  }
 
   @Get()
   findAll(@CurrentUser() user: any) {

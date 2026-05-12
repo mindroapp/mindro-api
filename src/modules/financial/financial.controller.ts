@@ -36,7 +36,7 @@ export class FinancialController {
 
   @Get('summary')
   getSummary(@CurrentUser() user: any) {
-    return this.financialService.getSummary(user.id);
+    return this.financialService.getSummary(user.id, user.email);
   }
 
   @Get('monthly')

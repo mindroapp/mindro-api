@@ -1,16 +1,22 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ScheduleService } from './schedule.service';
+import { PublicProfileService } from './public-profile.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { CreatePublicAppointmentDto } from './dto/create-public-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { CreateScheduleEventDto } from './dto/create-schedule-event.dto';
 import { UpdateScheduleEventDto } from './dto/update-schedule-event.dto';
+import { UpdatePublicProfileDto } from './dto/update-public-profile.dto';
 
 @Controller('schedule')
 export class ScheduleController {
-  constructor(private readonly scheduleService: ScheduleService) {}
+  constructor(
+    private readonly scheduleService: ScheduleService,
+    private readonly publicProfileService: PublicProfileService,
+  ) {}
 
   // ─── Availabilities ────────────────────────────────────────────────────────
 
@@ -82,5 +88,27 @@ export class ScheduleController {
   @Delete('events/:id')
   deleteScheduleEvent(@Param('id') id: string) {
     return this.scheduleService.deleteScheduleEvent(id);
+  }
+
+  // ─── Public Profile ────────────────────────────────────────────────────────
+
+  @Get('profile/public')
+  getPublicProfile(@CurrentUser('id') userId: string) {
+    return this.publicProfileService.getPublicProfile(userId);
+  }
+
+  @Public()
+  @Get('profile/public/:professionalId')
+  getPublicProfileByProfessional(@Param('professionalId') professionalId: string) {
+    // Se contém @, é um email; caso contrário, é um UUID
+    if (professionalId.includes('@')) {
+      return this.publicProfileService.getPublicProfileByEmail(professionalId);
+    }
+    return this.publicProfileService.getPublicProfile(professionalId);
+  }
+
+  @Patch('profile/public')
+  updatePublicProfile(@CurrentUser('id') userId: string, @Body() dto: UpdatePublicProfileDto) {
+    return this.publicProfileService.updatePublicProfile(userId, dto);
   }
 }

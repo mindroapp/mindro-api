@@ -60,6 +60,13 @@ export class ScheduleService {
       throw new NotFoundException('Agenda não encontrada');
     }
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const availabilityDate = new Date(`${availability.date}T00:00:00`);
+    if (availabilityDate < today) {
+      throw new BadRequestException('Não é possível excluir agendas de datas passadas');
+    }
+
     if (availability.appointments.length > 0) {
       throw new BadRequestException(
         'Esta agenda possui agendamentos vinculados e não pode ser excluída',
@@ -126,7 +133,14 @@ export class ScheduleService {
       throw new BadRequestException('Este horário já está reservado');
     }
 
-    return this.prisma.publicAppointment.create({ data: dto });
+    const data: any = { ...dto };
+
+    // Converter patientBirthDate para DateTime se fornecido
+    if (dto.patientBirthDate) {
+      data.patientBirthDate = new Date(dto.patientBirthDate);
+    }
+
+    return this.prisma.publicAppointment.create({ data });
   }
 
   async deletePublicAppointment(id: string) {

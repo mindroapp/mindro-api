@@ -39,6 +39,16 @@ export class PatientsService {
     return this.format(patient);
   }
 
+  async findByPhone(phone: string) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const patient = await this.prisma.patient.findFirst({
+      where: { phone: cleanPhone },
+      select: { name: true },
+    });
+    if (!patient) throw new NotFoundException('Paciente não encontrado');
+    return { name: patient.name };
+  }
+
   async create(dto: CreatePatientDto, professionalId: string) {
     const phone = dto.phone.replace(/\D/g, '');
 

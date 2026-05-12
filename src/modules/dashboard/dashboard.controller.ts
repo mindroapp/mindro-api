@@ -8,6 +8,11 @@ export class DashboardController {
 
   @Get('stats')
   getStats(@CurrentUser() user: any) {
-    return this.dashboardService.getStats(user.id);
+    return this.dashboardService.getStats(user.id, user.email);
+  }
+
+  @Get('admin-stats')
+  getAdminStats() {
+    return this.dashboardService.getAdminStats();
   }
 }

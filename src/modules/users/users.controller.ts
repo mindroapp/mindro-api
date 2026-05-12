@@ -42,6 +42,43 @@ export class UsersController {
     return this.usersService.findPublic(identifier);
   }
 
+  @Public()
+  @Post('public/patient/by-phone')
+  async findPatientByPhone(@Body() body: { phone: string }) {
+    const patient = await this.usersService.findPatientByPhone(body.phone);
+    return patient || {};
+  }
+
+  @Public()
+  @Post('public/patient/create')
+  async createPatient(
+    @Body()
+    body: {
+      fullName: string;
+      email: string;
+      phone: string;
+      birthDate: string;
+      professionalId: string;
+    },
+  ) {
+    return this.usersService.createPatient({
+      fullName: body.fullName,
+      email: body.email,
+      phone: body.phone,
+      birthDate: new Date(body.birthDate),
+      professionalId: body.professionalId,
+    });
+  }
+
+  @Get('public/patient/:patientId/sessions/:professionalId')
+  async getPatientSessions(
+    @Param('patientId') patientId: string,
+    @Param('professionalId') professionalId: string,
+  ) {
+    const count = await this.usersService.getPatientSessions(patientId, professionalId);
+    return { sessionCount: count };
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);

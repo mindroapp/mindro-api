@@ -170,7 +170,17 @@ export class UsersService {
           .replace(/[^a-z0-9\s]/g, '')
           .trim()
           .replace(/\s+/g, '-');
+
       match = professionals.find((u) => toSlug(u.fullName) === identifier);
+
+      // Fallback: match by "{council} {register}" (case-insensitive)
+      if (!match) {
+        const id = identifier.toLowerCase();
+        match = professionals.find((u) => {
+          if (!u.professionalCouncil || !u.professionalRegister) return false;
+          return `${u.professionalCouncil}-${u.professionalRegister}`.toLowerCase() === id;
+        });
+      }
     }
 
     if (!match) throw new NotFoundException('Professional not found');
@@ -197,7 +207,6 @@ export class UsersService {
 
     const updateData: any = {};
 
-    if (dto.fullName) updateData.fullName = dto.fullName;
     if (dto.email) {
       const byEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
       if (byEmail && byEmail.id !== id) throw new BadRequestException('Email already exists');
@@ -208,9 +217,6 @@ export class UsersService {
       if (byPhone && byPhone.id !== id) throw new BadRequestException('Phone already exists');
       updateData.phone = dto.phone;
     }
-    if (dto.profession) updateData.profession = dto.profession;
-    if (dto.professionalRegister) updateData.professionalRegister = dto.professionalRegister;
-    if (dto.professionalCouncil) updateData.professionalCouncil = dto.professionalCouncil;
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -242,5 +248,62 @@ export class UsersService {
     });
 
     return this.sanitize(updated);
+  }
+
+  async findPatientByPhone(phone: string) {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const patient = await this.prisma.user.findFirst({
+      where: {
+        phone: cleanPhone,
+        role: UserRole.PATIENT,
+      },
+    });
+    return patient ? this.sanitize(patient) : null;
+  }
+
+  async createPatient(data: {
+    fullName: string;
+    email: string;
+    phone: string;
+    birthDate: Date;
+    professionalId: string;
+  }) {
+    const cleanPhone = data.phone.replace(/\D/g, '');
+
+    // Verificar se paciente já existe
+    const existing = await this.prisma.user.findFirst({
+      where: {
+        phone: cleanPhone,
+        role: UserRole.PATIENT,
+      },
+    });
+
+    if (existing) return this.sanitize(existing);
+
+    // Criar nova conta de paciente
+    const patient = await this.prisma.user.create({
+      data: {
+        fullName: data.fullName,
+        email: data.email,
+        phone: cleanPhone,
+        passwordHash: await bcrypt.hash('default_password_' + cleanPhone, 10),
+        role: UserRole.PATIENT,
+        accountStatus: AccountStatus.ACTIVE,
+        approvalStatus: ApprovalStatus.APPROVED,
+        birthDate: data.birthDate,
+      },
+    });
+
+    return this.sanitize(patient);
+  }
+
+  async getPatientSessions(patientId: string, professionalId: string) {
+    const sessions = await this.prisma.session.count({
+      where: {
+        patientId,
+        professionalId,
+      },
+    });
+    return sessions;
   }
 }

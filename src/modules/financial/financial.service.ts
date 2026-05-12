@@ -112,12 +112,13 @@ export class FinancialService {
 
   // ─── Financial Stats ────────────────────────────────────────────────────────
 
-  async getSummary(professionalId: string) {
+  async getSummary(professionalId: string, professionalEmail: string) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
 
+    // ScheduleEvent uses email as professionalId; Patient/Payment use UUID
     const [totalPatients, thisMonthPayments, lastMonthAgg, activePatients] = await Promise.all([
       this.prisma.patient.count({ where: { professionalId } }),
       this.prisma.payment.findMany({
@@ -132,7 +133,7 @@ export class FinancialService {
         _sum: { amount: true },
       }),
       this.prisma.scheduleEvent.findMany({
-        where: { professionalId, date: { gte: startOfMonth } },
+        where: { professionalId: professionalEmail, date: { gte: startOfMonth } },
         select: { patientId: true },
         distinct: ['patientId'],
       }),

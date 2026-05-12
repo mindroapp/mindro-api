@@ -66,6 +66,8 @@ export class AuthService {
         email: user.email,
         role: user.role.toLowerCase(),
         isVerified: user.approvalStatus === ApprovalStatus.APPROVED,
+        professionalCouncil: user.professionalCouncil ?? null,
+        professionalRegister: user.professionalRegister ?? null,
       },
     };
   }
