@@ -157,31 +157,13 @@ export class UsersService {
       },
     });
 
-    let match: (typeof professionals)[number] | undefined;
-
-    if (identifier.includes('@')) {
-      match = professionals.find((u) => u.email === identifier);
-    } else {
-      const toSlug = (name: string) =>
-        name
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[̀-ͯ]/g, '')
-          .replace(/[^a-z0-9\s]/g, '')
-          .trim()
-          .replace(/\s+/g, '-');
-
-      match = professionals.find((u) => toSlug(u.fullName) === identifier);
-
-      // Fallback: match by "{council} {register}" (case-insensitive)
-      if (!match) {
-        const id = identifier.toLowerCase();
-        match = professionals.find((u) => {
-          if (!u.professionalCouncil || !u.professionalRegister) return false;
-          return `${u.professionalCouncil}-${u.professionalRegister}`.toLowerCase() === id;
-        });
-      }
-    }
+    // Match by phone number only
+    const match = professionals.find((u) => {
+      if (!u.phone) return false;
+      // Remove non-digits from stored phone and compare
+      const cleanedPhone = u.phone.replace(/\D/g, '');
+      return cleanedPhone === identifier;
+    });
 
     if (!match) throw new NotFoundException('Professional not found');
 
@@ -192,6 +174,7 @@ export class UsersService {
       profession: match.profession,
       professionalCouncil: match.professionalCouncil,
       professionalRegister: match.professionalRegister,
+      phone: match.phone,
     };
   }
 

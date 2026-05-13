@@ -47,8 +47,14 @@ export class DashboardService {
         where: { professionalId: professionalEmail },
         _count: { id: true },
       }),
-      this.prisma.availability.count({
-        where: { professionalId: professionalEmail, date: { startsWith: monthPrefix } },
+      this.prisma.timeSlot.count({
+        where: {
+          available: true,
+          availability: {
+            professionalId: professionalEmail,
+            date: { startsWith: monthPrefix },
+          },
+        },
       }),
     ]);
 

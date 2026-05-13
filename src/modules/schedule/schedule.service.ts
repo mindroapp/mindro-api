@@ -125,6 +125,11 @@ export class ScheduleService {
       throw new BadRequestException('Horário não encontrado na agenda');
     }
 
+    // Validar se o slot está realmente disponível
+    if (!slot.available) {
+      throw new BadRequestException('Este horário não está disponível');
+    }
+
     const existing = await this.prisma.publicAppointment.findFirst({
       where: { availabilityId: dto.availabilityId, time: dto.time },
     });
@@ -140,7 +145,21 @@ export class ScheduleService {
       data.patientBirthDate = new Date(dto.patientBirthDate);
     }
 
-    return this.prisma.publicAppointment.create({ data });
+    // Usar transação para garantir que ambas as operações são atômicas
+    const appointment = await this.prisma.$transaction(async (tx) => {
+      // Criar agendamento
+      const newAppointment = await tx.publicAppointment.create({ data });
+
+      // Atualizar TimeSlot para available: false (na mesma transação)
+      await tx.timeSlot.update({
+        where: { availabilityId_time: { availabilityId: dto.availabilityId, time: dto.time } },
+        data: { available: false },
+      });
+
+      return newAppointment;
+    });
+
+    return appointment;
   }
 
   async deletePublicAppointment(id: string) {
@@ -150,7 +169,23 @@ export class ScheduleService {
       throw new NotFoundException('Agendamento não encontrado');
     }
 
-    await this.prisma.publicAppointment.delete({ where: { id } });
+    // Usar transação para garantir que ambas as operações são atômicas
+    await this.prisma.$transaction(async (tx) => {
+      // Deletar agendamento
+      await tx.publicAppointment.delete({ where: { id } });
+
+      // Restaurar TimeSlot para available: true (na mesma transação)
+      await tx.timeSlot.update({
+        where: {
+          availabilityId_time: {
+            availabilityId: appointment.availabilityId,
+            time: appointment.time,
+          },
+        },
+        data: { available: true },
+      });
+    });
+
     return { success: true };
   }
 

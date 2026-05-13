@@ -19,16 +19,23 @@ export class AuthService {
     const user = await this.usersService.findByEmail(dto.email);
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Credenciais inválidas');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Credenciais inválidas');
     }
 
     if (user.accountStatus !== AccountStatus.ACTIVE) {
-      throw new UnauthorizedException('Account is inactive');
+      throw new UnauthorizedException('Conta inativa. Por favor, entre em contato com o suporte para mais informações.');
+    }
+
+    // Profissionais devem estar aprovados para fazer login
+    if (user.role === 'PROFESSIONAL' && user.approvalStatus !== ApprovalStatus.APPROVED) {
+      throw new UnauthorizedException(
+        'Sua conta está pendente de aprovação. Por favor, aguarde a confirmação do administrador para acessar a plataforma.',
+      );
     }
 
     return this.buildAuthResponse(user);
@@ -36,7 +43,7 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     if (dto.password !== dto.confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
+      throw new BadRequestException('Senha não confere');
     }
 
     const created = await this.usersService.create({
@@ -51,6 +58,24 @@ export class AuthService {
     });
 
     const user = await this.usersService.findByEmail(created.email as string);
+
+    // Retornar resposta sem tokens para profissionais não aprovados
+    // Apenas tokens para usuários já aprovados (admin/patient)
+    if (user?.role === 'PROFESSIONAL' && user?.approvalStatus !== ApprovalStatus.APPROVED) {
+      return {
+        user: {
+          id: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          phone: user.phone ?? null,
+          role: user.role.toLowerCase(),
+          isVerified: false,
+          professionalCouncil: user.professionalCouncil ?? null,
+          professionalRegister: user.professionalRegister ?? null,
+        },
+      };
+    }
+
     return this.buildAuthResponse(user!);
   }
 
@@ -64,6 +89,7 @@ export class AuthService {
         id: user.id,
         fullName: user.fullName,
         email: user.email,
+        phone: user.phone ?? null,
         role: user.role.toLowerCase(),
         isVerified: user.approvalStatus === ApprovalStatus.APPROVED,
         professionalCouncil: user.professionalCouncil ?? null,
