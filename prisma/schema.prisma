@@ -131,7 +131,7 @@ model ScheduleEvent {
 model Patient {
   id             String    @id @default(cuid())
   name           String
-  email          String
+  email          String?
   phone          String
   birthdate      DateTime
   gender         String?

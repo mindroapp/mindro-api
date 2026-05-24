@@ -52,20 +52,22 @@ export class PatientsService {
   async create(dto: CreatePatientDto, professionalId: string) {
     const phone = dto.phone.replace(/\D/g, '');
 
-    const existing = await this.prisma.patient.findFirst({
-      where: { email: dto.email, professionalId },
-    });
-    if (existing) throw new BadRequestException('Paciente com este e-mail já existe');
+    if (dto.email) {
+      const existing = await this.prisma.patient.findFirst({
+        where: { email: dto.email, professionalId },
+      });
+      if (existing) throw new BadRequestException('Paciente com este e-mail já existe');
+    }
 
-    const patient = await this.prisma.patient.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        phone,
-        birthdate: new Date(dto.birthdate),
-        professionalId,
-      },
-    });
+    const data: any = {
+      name: dto.name,
+      phone,
+      birthdate: new Date(dto.birthdate),
+      professionalId,
+    };
+    if (dto.email != null) data.email = dto.email;
+
+    const patient = await this.prisma.patient.create({ data });
     return this.format(patient);
   }
 
