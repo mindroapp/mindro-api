@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { Request, Response, NextFunction } from 'express';
+import cookieParser from 'cookie-parser';
 
 import * as swaggerStats from 'swagger-stats';
 
@@ -24,10 +25,13 @@ async function bootstrap() {
   // Increase body size limit to support base64-encoded file attachments (up to 10 MB per file)
   app.use(require('express').json({ limit: '50mb' }));
   app.use(require('express').urlencoded({ limit: '50mb', extended: true }));
+  app.use(cookieParser());
 
   app.setGlobalPrefix('api');
 
   const defaultOrigins = [
+    'http://localhost:3002',
+    'http://localhost:4002',
     'http://localhost:8080',
     'http://localhost:5173',
     'https://api.mindro.com.br',

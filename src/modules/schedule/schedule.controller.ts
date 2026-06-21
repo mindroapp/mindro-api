@@ -30,18 +30,19 @@ export class ScheduleController {
   }
 
   @Post('availabilities')
-  createAvailability(@Body() dto: CreateAvailabilityDto) {
+  createAvailability(@Body() dto: CreateAvailabilityDto, @CurrentUser() user: any) {
+    dto.professionalId = user.id;
     return this.scheduleService.createAvailability(dto);
   }
 
   @Delete('availabilities/:id')
-  deleteAvailability(@Param('id') id: string) {
-    return this.scheduleService.deleteAvailability(id);
+  deleteAvailability(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scheduleService.deleteAvailability(id, user.id);
   }
 
   @Delete('availabilities/:id/slots')
-  removeTimeSlot(@Param('id') id: string, @Query('time') time: string) {
-    return this.scheduleService.removeTimeSlot(id, time);
+  removeTimeSlot(@Param('id') id: string, @Query('time') time: string, @CurrentUser() user: any) {
+    return this.scheduleService.removeTimeSlot(id, time, user.id);
   }
 
   // ─── Public Appointments ───────────────────────────────────────────────────
@@ -59,35 +60,46 @@ export class ScheduleController {
   }
 
   @Delete('appointments/:id')
-  deletePublicAppointment(@Param('id') id: string) {
-    return this.scheduleService.deletePublicAppointment(id);
+  deletePublicAppointment(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scheduleService.deletePublicAppointment(id, user.id);
   }
 
   @Patch('appointments/:id/status')
-  updateAppointmentStatus(@Param('id') id: string, @Body() dto: UpdateAppointmentStatusDto) {
-    return this.scheduleService.updateAppointmentStatus(id, dto);
+  updateAppointmentStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateAppointmentStatusDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.scheduleService.updateAppointmentStatus(id, dto, user.id);
   }
 
   // ─── Schedule Events ───────────────────────────────────────────────────────
 
   @Get('events')
-  getScheduleEvents(@Query('professionalId') professionalId: string) {
-    return this.scheduleService.getScheduleEvents(professionalId);
+  getScheduleEvents(@CurrentUser() user: any) {
+    // Schedule events usam email como professionalId
+    return this.scheduleService.getScheduleEvents(user.email);
   }
 
   @Post('events')
-  createScheduleEvent(@Body() dto: CreateScheduleEventDto) {
+  createScheduleEvent(@Body() dto: CreateScheduleEventDto, @CurrentUser() user: any) {
+    // Schedule events usam email como professionalId
+    dto.professionalId = user.email;
     return this.scheduleService.createScheduleEvent(dto);
   }
 
   @Patch('events/:id')
-  updateScheduleEvent(@Param('id') id: string, @Body() dto: UpdateScheduleEventDto) {
-    return this.scheduleService.updateScheduleEvent(id, dto);
+  updateScheduleEvent(
+    @Param('id') id: string,
+    @Body() dto: UpdateScheduleEventDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.scheduleService.updateScheduleEvent(id, dto, user.email);
   }
 
   @Delete('events/:id')
-  deleteScheduleEvent(@Param('id') id: string) {
-    return this.scheduleService.deleteScheduleEvent(id);
+  deleteScheduleEvent(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.scheduleService.deleteScheduleEvent(id, user.email);
   }
 
   // ─── Public Profile ────────────────────────────────────────────────────────
@@ -100,7 +112,6 @@ export class ScheduleController {
   @Public()
   @Get('profile/public/:professionalId')
   getPublicProfileByProfessional(@Param('professionalId') professionalId: string) {
-    // Se contém @, é um email; caso contrário, é um UUID
     if (professionalId.includes('@')) {
       return this.publicProfileService.getPublicProfileByEmail(professionalId);
     }

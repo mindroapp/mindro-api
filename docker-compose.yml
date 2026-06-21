@@ -3,43 +3,121 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: mindro
+    container_name: mindro-api
+    restart: unless-stopped
+
     env_file:
       - .env
+
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - PORT=${PORT}
+      NODE_ENV: ${NODE_ENV}
+      PORT: ${PORT}
+      BASE_URL: ${BASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      UPLOAD_DIR: ${UPLOAD_DIR}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      TZ: America/Fortaleza
 
-      - BASE_URL=${BASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-
-      - UPLOAD_DIR=${UPLOAD_DIR}
-
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
-      - TZ=America/Fortaleza
     ports:
-      - "6000:6000"
-
-    restart: always
+      - "127.0.0.1:4002:4002"
 
     volumes:
       - uploads:/app/uploads
 
     networks:
-      - postgres
+      - mindro
+
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "require('http').get({host:'localhost',port:4002,path:'/health'},r=>{r.statusCode<400?process.exit(0):process.exit(1)}).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  postgres:
+    image: postgres:15
+    container_name: mindro-postgres
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - mindro
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  backup:
+    image: postgres:15
+    container_name: mindro-postgres-backup
+    restart: unless-stopped
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+
+    volumes:
+      - ./backups:/backups
+
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        mkdir -p /backups
+        while true; do
+          pg_dump -h postgres -U ${POSTGRES_USER} -d ${POSTGRES_DB} |
+            gzip > /backups/backup-$(date +\%Y-\%m-\%d-\%H-\%M).sql.gz
+          find /backups -type f -mtime +7 -delete
+          sleep 86400
+        done
+
+    networks:
       - mindro
 
 volumes:
+  postgres_data:
   uploads:
 
 networks:
-  postgres:
-    external: true
   mindro:
-    name: mindro
+    driver: bridge

@@ -31,6 +31,6 @@ COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /app/uploads
 
-EXPOSE 6000
+EXPOSE 4002
 
 CMD ["sh", "-c", "node dist/main.js"]

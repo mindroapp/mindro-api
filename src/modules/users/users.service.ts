@@ -169,12 +169,8 @@ export class UsersService {
 
     return {
       id: match.id,
-      email: match.email,
       fullName: match.fullName,
       profession: match.profession,
-      professionalCouncil: match.professionalCouncil,
-      professionalRegister: match.professionalRegister,
-      phone: match.phone,
     };
   }
 

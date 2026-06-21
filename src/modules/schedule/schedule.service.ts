@@ -1,6 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ReminderType } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service.js';
+import { ReminderService } from '../messaging/reminder.service';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { CreatePublicAppointmentDto } from './dto/create-public-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
@@ -9,7 +17,12 @@ import { UpdateScheduleEventDto } from './dto/update-schedule-event.dto';
 
 @Injectable()
 export class ScheduleService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ScheduleService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reminderService: ReminderService,
+  ) {}
 
   // ─── Availabilities ────────────────────────────────────────────────────────
 
@@ -50,7 +63,7 @@ export class ScheduleService {
     });
   }
 
-  async deleteAvailability(id: string) {
+  async deleteAvailability(id: string, professionalId: string) {
     const availability = await this.prisma.availability.findUnique({
       where: { id },
       include: { appointments: true },
@@ -58,6 +71,10 @@ export class ScheduleService {
 
     if (!availability) {
       throw new NotFoundException('Agenda não encontrada');
+    }
+
+    if (availability.professionalId !== professionalId) {
+      throw new ForbiddenException('Acesso negado');
     }
 
     const today = new Date();
@@ -77,7 +94,19 @@ export class ScheduleService {
     return { success: true };
   }
 
-  async removeTimeSlot(availabilityId: string, time: string) {
+  async removeTimeSlot(availabilityId: string, time: string, professionalId: string) {
+    const availability = await this.prisma.availability.findUnique({
+      where: { id: availabilityId },
+    });
+
+    if (!availability) {
+      throw new NotFoundException('Agenda não encontrada');
+    }
+
+    if (availability.professionalId !== professionalId) {
+      throw new ForbiddenException('Acesso negado');
+    }
+
     const timeSlot = await this.prisma.timeSlot.findUnique({
       where: { availabilityId_time: { availabilityId, time } },
     });
@@ -86,7 +115,6 @@ export class ScheduleService {
       throw new NotFoundException('Horário não encontrado');
     }
 
-    // Delete linked appointment for this slot if any
     await this.prisma.publicAppointment.deleteMany({
       where: { availabilityId, time },
     });
@@ -125,7 +153,6 @@ export class ScheduleService {
       throw new BadRequestException('Horário não encontrado na agenda');
     }
 
-    // Validar se o slot está realmente disponível
     if (!slot.available) {
       throw new BadRequestException('Este horário não está disponível');
     }
@@ -140,17 +167,13 @@ export class ScheduleService {
 
     const data: any = { ...dto };
 
-    // Converter patientBirthDate para DateTime se fornecido
     if (dto.patientBirthDate) {
       data.patientBirthDate = new Date(dto.patientBirthDate);
     }
 
-    // Usar transação para garantir que ambas as operações são atômicas
     const appointment = await this.prisma.$transaction(async (tx) => {
-      // Criar agendamento
       const newAppointment = await tx.publicAppointment.create({ data });
 
-      // Atualizar TimeSlot para available: false (na mesma transação)
       await tx.timeSlot.update({
         where: { availabilityId_time: { availabilityId: dto.availabilityId, time: dto.time } },
         data: { available: false },
@@ -159,22 +182,52 @@ export class ScheduleService {
       return newAppointment;
     });
 
+    // Agendar reminder — fire and forget, não bloqueia a resposta
+    this.schedulePublicAppointmentReminder(appointment).catch((err) =>
+      this.logger.warn(`Falha ao agendar reminder: ${err.message}`),
+    );
+
     return appointment;
   }
 
-  async deletePublicAppointment(id: string) {
+  private async schedulePublicAppointmentReminder(appointment: {
+    id: string;
+    patientName: string;
+    patientPhone: string;
+    professionalId: string;
+    date: string;
+    time: string;
+  }): Promise<void> {
+    const professional = await this.prisma.user.findUnique({
+      where: { id: appointment.professionalId },
+      select: { fullName: true },
+    });
+
+    await this.reminderService.scheduleForPublicAppointment({
+      appointmentId: appointment.id,
+      patientName: appointment.patientName,
+      patientPhone: appointment.patientPhone,
+      professionalId: appointment.professionalId,
+      professionalName: professional?.fullName ?? 'Profissional',
+      date: appointment.date,
+      time: appointment.time,
+    });
+  }
+
+  async deletePublicAppointment(id: string, professionalId: string) {
     const appointment = await this.prisma.publicAppointment.findUnique({ where: { id } });
 
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado');
     }
 
-    // Usar transação para garantir que ambas as operações são atômicas
+    if (appointment.professionalId !== professionalId) {
+      throw new ForbiddenException('Acesso negado');
+    }
+
     await this.prisma.$transaction(async (tx) => {
-      // Deletar agendamento
       await tx.publicAppointment.delete({ where: { id } });
 
-      // Restaurar TimeSlot para available: true (na mesma transação)
       await tx.timeSlot.update({
         where: {
           availabilityId_time: {
@@ -186,14 +239,25 @@ export class ScheduleService {
       });
     });
 
+    // Cancelar reminder pendente
+    this.reminderService.cancelForAppointment(id, ReminderType.PUBLIC_APPOINTMENT).catch(() => {});
+
     return { success: true };
   }
 
-  async updateAppointmentStatus(id: string, dto: UpdateAppointmentStatusDto) {
+  async updateAppointmentStatus(
+    id: string,
+    dto: UpdateAppointmentStatusDto,
+    professionalId: string,
+  ) {
     const appointment = await this.prisma.publicAppointment.findUnique({ where: { id } });
 
     if (!appointment) {
       throw new NotFoundException('Agendamento não encontrado');
+    }
+
+    if (appointment.professionalId !== professionalId) {
+      throw new ForbiddenException('Acesso negado');
     }
 
     return this.prisma.publicAppointment.update({
@@ -204,9 +268,9 @@ export class ScheduleService {
 
   // ─── Schedule Events ───────────────────────────────────────────────────────
 
-  async getScheduleEvents(professionalId: string) {
+  async getScheduleEvents(professionalEmail: string) {
     const events = await this.prisma.scheduleEvent.findMany({
-      where: { professionalId },
+      where: { professionalId: professionalEmail },
       orderBy: { date: 'asc' },
     });
 
@@ -224,14 +288,47 @@ export class ScheduleService {
       },
     });
 
+    // Agendar reminder — fire and forget
+    if (event.patientPhone) {
+      this.scheduleEventReminder(event).catch((err) =>
+        this.logger.warn(`Falha ao agendar reminder: ${err.message}`),
+      );
+    }
+
     return { ...event, date: event.date.toISOString() };
   }
 
-  async updateScheduleEvent(id: string, dto: UpdateScheduleEventDto) {
+  private async scheduleEventReminder(event: {
+    id: string;
+    patientName: string;
+    patientPhone: string | null;
+    professionalId: string;
+    date: Date;
+  }): Promise<void> {
+    const professional = await this.prisma.user.findUnique({
+      where: { email: event.professionalId },
+      select: { id: true, fullName: true },
+    });
+
+    await this.reminderService.scheduleForScheduleEvent({
+      eventId: event.id,
+      patientName: event.patientName,
+      patientPhone: event.patientPhone ?? '',
+      professionalId: professional?.id ?? event.professionalId,
+      professionalName: professional?.fullName ?? 'Profissional',
+      eventAt: event.date,
+    });
+  }
+
+  async updateScheduleEvent(id: string, dto: UpdateScheduleEventDto, professionalEmail: string) {
     const event = await this.prisma.scheduleEvent.findUnique({ where: { id } });
 
     if (!event) {
       throw new NotFoundException('Evento não encontrado');
+    }
+
+    if (event.professionalId !== professionalEmail) {
+      throw new ForbiddenException('Acesso negado');
     }
 
     const updated = await this.prisma.scheduleEvent.update({
@@ -245,14 +342,22 @@ export class ScheduleService {
     return { ...updated, date: updated.date.toISOString() };
   }
 
-  async deleteScheduleEvent(id: string) {
+  async deleteScheduleEvent(id: string, professionalEmail: string) {
     const event = await this.prisma.scheduleEvent.findUnique({ where: { id } });
 
     if (!event) {
       throw new NotFoundException('Evento não encontrado');
     }
 
+    if (event.professionalId !== professionalEmail) {
+      throw new ForbiddenException('Acesso negado');
+    }
+
     await this.prisma.scheduleEvent.delete({ where: { id } });
+
+    // Cancelar reminder pendente
+    this.reminderService.cancelForAppointment(id, ReminderType.SCHEDULE_EVENT).catch(() => {});
+
     return { success: true };
   }
 }

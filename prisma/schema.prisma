@@ -56,6 +56,18 @@ enum ScheduleEventStatus {
   cancelled
 }
 
+enum ReminderType {
+  PUBLIC_APPOINTMENT
+  SCHEDULE_EVENT
+}
+
+enum ReminderStatus {
+  pending
+  sent
+  failed
+  skipped
+}
+
 model User {
   id                   String         @id @default(cuid())
   fullName             String
@@ -169,6 +181,25 @@ model Session {
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model Reminder {
+  id             String         @id @default(cuid())
+  appointmentId  String
+  type           ReminderType
+  professionalId String
+  patientName    String
+  patientPhone   String
+  message        String         @db.Text
+  scheduledFor   DateTime
+  sentAt         DateTime?
+  status         ReminderStatus @default(pending)
+  errorMessage   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([appointmentId, type])
+  @@index([status, scheduledFor])
 }
 
 model ProfessionalPublicProfile {

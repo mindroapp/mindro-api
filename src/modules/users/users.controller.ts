@@ -1,7 +1,18 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -12,11 +23,13 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
+  @Roles('ADMIN')
   async create(@Body() dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
 
   @Get()
+  @Roles('ADMIN')
   async findAll() {
     return this.usersService.findAll();
   }
@@ -72,45 +85,56 @@ export class UsersController {
 
   @Get('public/patient/:patientId/sessions/:professionalId')
   async getPatientSessions(
+    @CurrentUser() user: any,
     @Param('patientId') patientId: string,
     @Param('professionalId') professionalId: string,
   ) {
+    if (user.id !== professionalId && user.role?.toUpperCase() !== 'ADMIN') {
+      throw new ForbiddenException('Acesso negado');
+    }
     const count = await this.usersService.getPatientSessions(patientId, professionalId);
     return { sessionCount: count };
   }
 
   @Get(':id')
+  @Roles('ADMIN')
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
+  @Roles('ADMIN')
   async update(@Param('id') id: string, @Body() dto: Partial<CreateUserDto>) {
     return this.usersService.update(id, dto);
   }
 
   @Patch(':id/approve')
+  @Roles('ADMIN')
   async approve(@Param('id') id: string) {
     return this.usersService.approve(id);
   }
 
   @Patch(':id/reject')
+  @Roles('ADMIN')
   async reject(@Param('id') id: string) {
     return this.usersService.reject(id);
   }
 
   @Patch(':id/activate')
+  @Roles('ADMIN')
   async activate(@Param('id') id: string) {
     return this.usersService.activate(id);
   }
 
   @Patch(':id/deactivate')
+  @Roles('ADMIN')
   async deactivate(@Param('id') id: string) {
     return this.usersService.deactivate(id);
   }
 
   @Delete(':id')
   @HttpCode(204)
+  @Roles('ADMIN')
   async delete(@Param('id') id: string) {
     return this.usersService.delete(id);
   }

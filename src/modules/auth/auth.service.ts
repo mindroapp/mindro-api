@@ -28,7 +28,9 @@ export class AuthService {
     }
 
     if (user.accountStatus !== AccountStatus.ACTIVE) {
-      throw new UnauthorizedException('Conta inativa. Por favor, entre em contato com o suporte para mais informações.');
+      throw new UnauthorizedException(
+        'Conta inativa. Por favor, entre em contato com o suporte para mais informações.',
+      );
     }
 
     // Profissionais devem estar aprovados para fazer login
@@ -77,6 +79,26 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(user!);
+  }
+
+  async refresh(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken);
+      const user = await this.usersService.findByEmail(payload.email);
+
+      if (!user || user.accountStatus !== AccountStatus.ACTIVE) {
+        throw new UnauthorizedException('Sessão inválida');
+      }
+
+      if (user.role === 'PROFESSIONAL' && user.approvalStatus !== ApprovalStatus.APPROVED) {
+        throw new UnauthorizedException('Conta não aprovada');
+      }
+
+      return this.buildAuthResponse(user);
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Token de renovação inválido ou expirado');
+    }
   }
 
   buildAuthResponse(user: User) {
